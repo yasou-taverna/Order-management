@@ -1,1 +1,389 @@
 
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8">
+  <title>ניהול הזמנות Yasou</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      direction: rtl;
+      background: #f8f9fa;
+      padding: 20px;
+    }
+      .container-page {
+	width: 100%;
+	max-width: 1320px;
+	padding-inline: clamp(1.25rem, .75rem + 2vw, 2.5rem);
+	margin-inline: auto;
+}
+
+    h1 {
+      text-align: center;
+      color: #0b2a45;
+    }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-weight: 600;
+      color: #0b2a45;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .btn:hover {
+      background: #0b2a45;
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+    .search {
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      flex: 1;
+      min-width: 200px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #0b2a45;
+      color: #fff;
+      cursor: pointer;
+    }
+    tr:nth-child(even) {
+      background: #f2f2f2;
+    }
+    .row-actions {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+    }
+    .row-btn {
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-size: 12px;
+      cursor: pointer;
+      background: #fff;
+    }
+    .row-btn.delete {
+      color: #b00020;
+    }
+    .row-btn.duplicate {
+      color: #0b2a45;
+    }
+    
+    td:nth-child(11) {
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.link-col {
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link-col a {
+  display: inline-block;
+  padding: 4px 8px;
+  background: #0b2a45;
+  color: #fff;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 12px;
+}
+  </style>
+</head>
+<body>
+
+<h1>ניהול הזמנות Yasou</h1>
+<div class="container-page">
+
+<div class="toolbar">
+  <button class="btn" onclick="addEmptyRow()">➕ הוסף שורה חדשה</button>
+  <button class="btn" onclick="saveData()">💾 שמור</button>
+  <button class="btn" onclick="printTable()">🖨 הדפס הכל</button>
+  <button class="btn" onclick="printFiltered()">🖨 הדפס לפי סינון</button>
+  <button class="btn" onclick="exportPDF()">📄 PDF</button>
+  <button class="btn" onclick="exportExcel()">📊 Excel</button>
+  <input id="searchInput" class="search" placeholder="🔍 חיפוש לפי שם / תאריך / טלפון">
+</div>
+
+<table id="resTable">
+  <thead>
+    <tr>
+      <th>שם</th>
+      <th>טלפון</th>
+      <th>תאריך</th>
+      <th>שעה</th>
+      <th>אורחים</th>
+      <th>שולחן</th>
+      <th>סטטוס</th>
+      <th>מיקום</th>
+      <th>סוג</th>
+      <th>סכום</th>
+      <th>קישור</th>
+      <th>פעולות</th>
+    </tr>
+  </thead>
+  <tbody id="resBody"></tbody>
+</table>
+</div>
+<script>
+  let reservations = JSON.parse(localStorage.getItem("yasou_reservations") || "[]");
+
+  function renderTable() {
+    const body = document.getElementById("resBody");
+    body.innerHTML = "";
+
+    reservations.forEach((row, index) => {
+      const tr = document.createElement("tr");
+
+      const fields = ["name","phone","date","time","guests","table","status","location","type","amount","link"];
+      fields.forEach(key => {
+        const td = document.createElement("td");
+        td.contentEditable = true;
+        td.innerText = row[key] || "";
+        tr.appendChild(td);
+      });
+
+      const actionsTd = document.createElement("td");
+      const actionsDiv = document.createElement("div");
+      actionsDiv.className = "row-actions";
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "row-btn delete";
+      delBtn.innerText = "מחק";
+      delBtn.onclick = () => deleteRow(index);
+
+      const dupBtn = document.createElement("button");
+      dupBtn.className = "row-btn duplicate";
+      dupBtn.innerText = "שכפל";
+      dupBtn.onclick = () => duplicateRow(index);
+
+      actionsDiv.appendChild(dupBtn);
+      actionsDiv.appendChild(delBtn);
+      actionsTd.appendChild(actionsDiv);
+      tr.appendChild(actionsTd);
+
+      body.appendChild(tr);
+    });
+
+    addEmptyRow(false);
+  }
+
+  function addEmptyRow(push = true) {
+    if (push) {
+      reservations.push({
+        name: "",
+        phone: "",
+        date: "",
+        time: "",
+        guests: "",
+        table: "",
+        status: "",
+        location: "",
+        type: "",
+        amount: "",
+        link: ""
+      });
+    }
+
+    const body = document.getElementById("resBody");
+    const tr = document.createElement("tr");
+    const fields = ["name","phone","date","time","guests","table","status","location","type","amount","link"];
+
+    fields.forEach(() => {
+      const td = document.createElement("td");
+      td.contentEditable = true;
+      td.innerText = "";
+      tr.appendChild(td);
+    });
+
+    const actionsTd = document.createElement("td");
+    actionsTd.innerHTML = '<div class="row-actions"><span style="font-size:12px;color:#888;">שורה חדשה</span></div>';
+    tr.appendChild(actionsTd);
+
+    body.appendChild(tr);
+  }
+
+  function deleteRow(index) {
+    reservations.splice(index, 1);
+    saveAndRender();
+  }
+
+  function duplicateRow(index) {
+    const copy = {...reservations[index]};
+    reservations.splice(index + 1, 0, copy);
+    saveAndRender();
+  }
+
+  function saveData() {
+    const rows = document.querySelectorAll("#resBody tr");
+    const newData = [];
+
+    rows.forEach(tr => {
+      const tds = tr.querySelectorAll("td");
+      if (tds.length < 11) return;
+
+      const row = {
+        name: tds[0].innerText.trim(),
+        phone: tds[1].innerText.trim(),
+        date: tds[2].innerText.trim(),
+        time: tds[3].innerText.trim(),
+        guests: tds[4].innerText.trim(),
+        table: tds[5].innerText.trim(),
+        status: tds[6].innerText.trim(),
+        location: tds[7].innerText.trim(),
+        type: tds[8].innerText.trim(),
+        amount: tds[9].innerText.trim(),
+        link: tds[10].innerText.trim()
+      };
+
+      if (Object.values(row).some(v => v !== "")) {
+        newData.push(row);
+      }
+    });
+
+    reservations = newData;
+    localStorage.setItem("yasou_reservations", JSON.stringify(reservations));
+    alert("הנתונים נשמרו!");
+    renderTable();
+  }
+
+  function saveAndRender() {
+    localStorage.setItem("yasou_reservations", JSON.stringify(reservations));
+    renderTable();
+  }
+
+  function printTable() {
+    const printContent = document.getElementById("resTable").outerHTML;
+    const win = window.open("", "", "width=900,height=700");
+    win.document.write(`
+      <html>
+        <head>
+          <title>הדפסת הזמנות</title>
+          <style>
+            body { direction: rtl; font-family: Arial; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+            th { background: #0b2a45; color: #fff; }
+            tr:nth-child(even) { background: #f2f2f2; }
+          </style>
+        </head>
+        <body>
+          ${printContent}
+        </body>
+      </html>
+    `);
+    win.document.close();
+    win.print();
+  }
+
+  function printFiltered() {
+    const q = document.getElementById("searchInput").value.toLowerCase();
+    const rows = Array.from(document.querySelectorAll("#resBody tr"))
+      .filter(r => r.innerText.toLowerCase().includes(q));
+
+    const html = `
+      <table>${rows.map(r => r.outerHTML).join("")}</table>
+    `;
+
+    const win = window.open("", "", "width=900,height=700");
+    win.document.write(`
+      <html><head><title>הדפסה</title></head><body>${html}</body></html>
+    `);
+    win.document.close();
+    win.print();
+  }
+
+  function exportPDF() {
+    printTable(); // המשתמש בוחר "שמירה כ-PDF" במדפסת
+  }
+
+  function exportExcel() {
+    let csv = "";
+    const rows = document.querySelectorAll("#resTable tr");
+
+    rows.forEach(row => {
+      const cols = row.querySelectorAll("th, td");
+      const line = Array.from(cols).map(c => `"${c.innerText.replace(/"/g, '""')}"`).join(",");
+      csv += line + "\n";
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "reservations.csv";
+    a.click();
+  }
+
+  document.getElementById("searchInput").addEventListener("input", function() {
+    const q = this.value.toLowerCase();
+    const rows = document.querySelectorAll("#resBody tr");
+
+    rows.forEach(row => {
+      const text = row.innerText.toLowerCase();
+      row.style.display = text.includes(q) ? "" : "none";
+    });
+  });
+
+  document.querySelectorAll("#resTable th").forEach((th, index) => {
+    th.addEventListener("click", () => sortTable(index));
+  });
+
+  function sortTable(colIndex) {
+    if (colIndex === 11) return;
+    const rows = Array.from(document.querySelectorAll("#resBody tr"));
+    const dataRows = rows.filter(r => r.querySelectorAll("td").length >= 11);
+
+    const sorted = dataRows.sort((a, b) => {
+      const A = a.children[colIndex].innerText.toLowerCase();
+      const B = b.children[colIndex].innerText.toLowerCase();
+      return A.localeCompare(B, "he");
+    });
+
+    const body = document.getElementById("resBody");
+    body.innerHTML = "";
+    sorted.forEach(r => body.appendChild(r));
+    addEmptyRow(false);
+  }
+
+  renderTable();
+  
+  if (row.link.startsWith("http")) {
+  td.innerHTML = `<a href="${row.link}" target="_blank">${row.link}</a>`;
+} else {
+  td.innerText = row.link;
+}
+
+const td = document.createElement("td");
+td.className = "link-col";
+td.innerText = row.link;
+</script>
+
+</body>
+</html>
+
